@@ -1,0 +1,95 @@
+{
+  "rules": {
+    "static": {
+      "view_type": "home",
+      "value": {
+        "type": "home",
+        "blocks": [
+          {
+            "type": "header",
+            "text": {
+              "type": "plain_text",
+              "text": "SWA BOT",
+              "emoji": true
+            }
+          },
+          {
+            "type": "section",
+            "text": {
+              "type": "mrkdwn",
+              "text": "Welcome to @swa's home page. Choose from options below."
+            }
+          },
+          {
+            "type": "divider"
+          },
+          {
+            "type": "actions",
+            "elements": [
+              {
+                "type": "button",
+                "text": {
+                  "type": "plain_text",
+                  "text": "Send a Feedback",
+                  "emoji": true
+                },
+                "value": "send_feedback"
+              },
+              {
+                "type": "button",
+                "text": {
+                  "type": "plain_text",
+                  "text": "Send a Suggestion",
+                  "emoji": true
+                },
+                "value": "send_suggestion"
+              },
+              {
+                "type": "button",
+                "text": {
+                  "type": "plain_text",
+                  "text": "Go to Admin Panel",
+                  "emoji": true
+                },
+                "value": "admin_panel",
+                "url": "https://admin.swa-ai.com/"
+              }
+            ]
+          },
+          {
+            "type": "actions",
+            "elements": [
+              {
+                "type": "button",
+                "text": {
+                  "type": "plain_text",
+                  "text": "List my Agents",
+                  "emoji": true
+                },
+                "value": "list_my_agents"
+              },
+              {
+                "type": "button",
+                "text": {
+                  "type": "plain_text",
+                  "text": "List Admin Agents",
+                  "emoji": true
+                },
+                "value": "list_admin_agents"
+              },
+              {
+                "type": "button",
+                "text": {
+                  "type": "plain_text",
+                  "text": "List Channel Agents",
+                  "emoji": true
+                },
+                "value": "list_channel_agents_static"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

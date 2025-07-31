@@ -1,0 +1,10 @@
+.aws-sam
+node_modules
+src/node_modules
+samconfig.toml
+src/nodemon.config.js
+src/local-env.mjs
+src/local.mjs
+src/local-files/*
+*.gz
+*.zip

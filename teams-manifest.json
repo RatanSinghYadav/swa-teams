@@ -1,0 +1,74 @@
+{
+  "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.16/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.16",
+  "version": "1.0.0",
+  "id": "333aeb09-c82e-4a37-9ace-40aa0d7e8a0d",
+  "packageName": "com.swa.teams.bot",
+  "developer": {
+    "name": "SWA Technology",
+    "websiteUrl": "https://swa-ai.com",
+    "privacyUrl": "https://swa-ai.com/privacy",
+    "termsOfUseUrl": "https://swa-ai.com/terms"
+  },
+  "icons": {
+    "color": "icon-color.png",
+    "outline": "icon-outline.png"
+  },
+  "name": {
+    "short": "SWA Bot",
+    "full": "SWA AI Assistant Bot"
+  },
+  "description": {
+    "short": "AI-powered assistant with multiple specialized agents",
+    "full": "SWA Bot is an intelligent assistant that provides access to multiple AI agents for various tasks including Jira management, Microsoft services, QuickBooks, and general AI assistance. Simply mention @swa in any conversation or chat directly with the bot."
+  },
+  "accentColor": "#0078D4",
+  "bots": [
+    {
+      "botId": "333aeb09-c82e-4a37-9ace-40aa0d7e8a0d",
+      "scopes": [
+        "personal",
+        "team",
+        "groupchat"
+      ],
+      "supportsFiles": false,
+      "isNotificationOnly": false,
+      "commandLists": [
+        {
+          "scopes": [
+            "personal",
+            "team",
+            "groupchat"
+          ],
+          "commands": [
+            {
+              "title": "Help",
+              "description": "Get help and learn about available agents"
+            },
+            {
+              "title": "What can you do?",
+              "description": "Learn about SWA Bot capabilities"
+            },
+            {
+              "title": "Create agent",
+              "description": "Create a new custom AI agent"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "permissions": [
+    "identity",
+    "messageTeamMembers"
+  ],
+  "validDomains": [
+    "swa-ai.com",
+    "*.azurewebsites.net",
+    "*.ngrok.io"
+  ],
+  "webApplicationInfo": {
+    "id": "333aeb09-c82e-4a37-9ace-40aa0d7e8a0d",
+    "resource": "https://RscBasedStoreApp"
+  }
+}

@@ -1,0 +1,386 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Parameters:
+  ResourceName:
+    Type: String
+    Default: "swa-bot"
+  Stage:
+    Type: String
+    Default: develop
+    AllowedValues:
+      - qa
+      - prod
+      - swa
+      - develop
+Conditions:
+  IsProd: !Equals
+    - Ref: Stage
+    - prod
+  IsNotProd: 
+    Fn::Not:
+      - Condition: IsProd
+Resources:
+  Api:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: !Ref Stage
+      OpenApiVersion: "2.0"
+  BasePathMapping:
+    Type: AWS::ApiGateway::BasePathMapping
+    Properties:
+      BasePath: !Sub "${ResourceName}-${Stage}"
+      DomainName: !If [IsProd, "api-prod.swa-ai.com", "api.swa-ai.com"]
+      RestApiId: !Ref Api
+      Stage: !Ref Api.Stage
+  NodeJSLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      Description: "Layer with NodeJS Node Modules"
+      LayerName: !Sub "${ResourceName}-nodejs-layer-${Stage}"
+      ContentUri: nodejs_layer
+      CompatibleRuntimes:
+        - nodejs20.x
+  SwaBotLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${ResourceName}-lambda-${Stage}"
+      Description: "Swa Super Bot"
+      Handler: "index.handler"
+      Runtime: nodejs20.x
+      CodeUri: src
+      MemorySize: 5120
+      Timeout: 300
+      LoggingConfig:
+        LogGroup: !Ref SwaBotLambdaLogGroup
+      Layers:
+        - !Ref NodeJSLayer
+      Events:
+        PostApiEvent:
+          Type: Api
+          Properties:
+            Method: POST
+            Path: /v1
+            RestApiId: !Ref Api
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Statement:
+          - Effect: Allow
+            Action:
+              - secretsmanager:GetSecretValue
+            Resource: !Sub "arn:aws:secretsmanager:*" 
+        - Statement:
+          - Effect: Allow
+            Action:
+              - dynamodb:*
+            Resource: !Sub "arn:aws:dynamodb:*:*:table/*"
+        - Statement:
+          - Effect: Allow
+            Action:
+              - cloudwatch:*
+            Resource: "*"
+        - Statement:
+          - Effect: Allow
+            Action:
+              - logs:*
+            Resource: !Sub "arn:aws:logs:*:*:*"
+        - Statement:
+          - Effect: Allow
+            Action:
+              - cloudfront:*
+            Resource: !Sub "arn:aws:cloudfront:*:*:*"
+        - Statement:
+          - Effect: Allow
+            Action:
+              - s3:*
+              - s3-object-lambda:*
+            Resource: "*"
+        - Statement:
+          - Effect: Allow
+            Action:
+              - lambda:*
+            Resource: !Sub "arn:aws:lambda:*:*:*"
+        - Statement:
+          - Effect: Allow
+            Action:
+              - ssm:GetParameter
+              - ssm:GetParameters
+            Resource: "arn:aws:ssm:*"
+        - Statement:
+          - Effect: Allow
+            Action:
+              - sqs:*
+            Resource: !Sub "arn:aws:sqs:*:*:*"
+        - Statement:
+          - Effect: Allow
+            Action:
+              - bedrock:InvokeModel
+            Resource: arn:aws:bedrock:*::foundation-model/*
+      Environment:
+        Variables:
+          STAGE: !Ref Stage
+          STORAGE_TABLE: "bot-chat-history-beta"
+          CONFIG_TABLE: "instance-config"
+          ANTHROPIC_KEY: "{{resolve:secretsmanager:swa-api-secrets:SecretString:ANTHROPIC_KEY}}"
+          OPENAI_KEY: "{{resolve:secretsmanager:swa-api-secrets:SecretString:OPENAI_KEY}}"
+          PERPLEXITY_KEY: "{{resolve:secretsmanager:swa-api-secrets:SecretString:PERPLEXITY_KEY}}"
+          GROK_KEY: "{{resolve:secretsmanager:swa-api-secrets:SecretString:GROK_KEY}}"
+          SWA_SLACK_SIGNING_SECRET: !Sub "{{resolve:secretsmanager:swa-slack-creds:SecretString:SWA_SLACK_SIGNING_SECRET_${Stage}}}"
+          DB_ENDPOINT: "https://dynamodb.us-east-1.amazonaws.com"
+          TOKEN_QUEUE: !Sub "https://sqs.us-east-1.amazonaws.com/${AWS::AccountId}/swa-token-stats-queue-${Stage}"
+          ANTHROPIC_MODEL: "claude-3-7-sonnet-20250219"
+          BEDROCK_MODEL: "amazon.nova-pro-v1:0"
+          OPENAI_MODEL: "gpt-4.1-mini"
+          GROK_MODEL: "grok-3-latest"
+          OAUTH_GENERATOR: "swa-oauth-token-generator-lambda"
+          OAUTH_HANDLER: "swa-oauth-handler-lambda"
+
+  SwaBotLambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${ResourceName}-lambda-${Stage}"
+      RetentionInDays: 180
+  SwaBotDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub "${ResourceName}-dashboard-${Stage}"
+      DashboardBody: !Sub |
+        {
+          "start": "P1D",
+          "widgets": [
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 6,
+              "width": 24,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "AWS/Lambda", "Invocations", "FunctionName", "${ResourceName}-lambda-${Stage}", { "region": "us-east-1"} ],
+                  [ ".", "Errors", ".", ".", { "region": "us-east-1" } ]
+                ],
+                "view": "bar",
+                "stacked": true,
+                "title": "Lambda Invocations and Errors",
+                "region": "us-east-1",
+                "period": 300,
+                "stat": "Sum"
+              }
+            },
+            {
+              "height": 6,
+              "width": 24,
+              "x": 0,
+              "y": 48,
+              "type": "log",
+              "properties": {
+                "query": "SOURCE '/aws/lambda/${ResourceName}-lambda-${Stage}' | fields @logStream, @timestamp, workspace, @message| filter message = \"request accepted\"",
+                "region": "us-east-1",
+                "stacked": false,
+                "title": "Accepted Requests",
+                "view": "table"
+              }
+            },
+            {
+              "height": 6,
+              "width": 24,
+              "x": 0,
+              "y": 48,
+              "type": "log",
+              "properties": {
+                "query": "SOURCE '/aws/lambda/${ResourceName}-lambda-${Stage}' | fields @logStream, @timestamp, workspace, @message | filter message = \"AI Response\"",
+                "region": "us-east-1",
+                "stacked": false,
+                "title": "AI Usage Chart",
+                "view": "table"
+              }
+            },
+            {
+              "height": 6,
+              "width": 24,
+              "x": 0,
+              "y": 48,
+              "type": "log",
+              "properties": {
+                "query": "SOURCE '/aws/lambda/${ResourceName}-lambda-${Stage}' | fields @logStream, @timestamp, workspace, @message | filter level = \"error\"",
+                "region": "us-east-1",
+                "stacked": false,
+                "title": "Error Chart",
+                "view": "table"
+              }
+            }
+          ]
+        }
+  SwaNotificationProd:
+    Condition: IsProd
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: "Swa Notification Prod"
+      TopicName: !Sub "${ResourceName}-notification-${Stage}"
+      Subscription:
+        - Endpoint: "support@swa-ai.com"
+          Protocol: email
+  SwaNotificationTest:
+    Condition: IsNotProd
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: !Sub "Swa Notification ${Stage}"
+      TopicName: !Sub "${ResourceName}-notification-${Stage}"
+      Subscription:
+        - Endpoint: "devtools@swa-ai.com"
+          Protocol: email
+  SwaOrchestratorExceptionMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    DependsOn:
+      - SwaBotLambda
+    Properties:
+      FilterName: !Sub "orchestrator-exception-metric-filter-${Stage}"
+      LogGroupName: !Sub "/aws/lambda/${ResourceName}-lambda-${Stage}"
+      FilterPattern: '{($.level = "error") && ($.message = "*Exception*")}'
+      MetricTransformations:
+        - MetricValue: "1"
+          MetricNamespace: "SwaBot"
+          MetricName: "orchestrator-exception"
+          DefaultValue: 0
+          Unit: "Count"
+  SwaOrchestratorExceptionAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "orchestrator-alarm-${Stage}"
+      AlarmDescription: "Alarm for Swa Bot Exception"
+      Namespace: "SwaBot"
+      MetricName: "orchestrator-exception"
+      Statistic: "Sum"
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      TreatMissingData: "missing"
+      ComparisonOperator: "GreaterThanOrEqualToThreshold"
+      AlarmActions:
+        - !If [IsProd, !Ref SwaNotificationProd, !Ref SwaNotificationTest]
+  SwaSlackApiExceptionMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    DependsOn:
+      - SwaBotLambda
+    Properties:
+      FilterName: !Sub "swa-slackapi-metric-filter-${Stage}"
+      LogGroupName: !Sub "/aws/lambda/${ResourceName}-lambda-${Stage}"
+      FilterPattern: '{($.level = "error") && ($.message = "*Slack*")}'
+      MetricTransformations:
+        - MetricValue: "1"
+          MetricNamespace: "SwaBot"
+          MetricName: "swa-slack-exception"
+          DefaultValue: 0
+          Unit: "Count"
+  SwaSlackApiExceptonAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "swa-slack-alarm-${Stage}"
+      AlarmDescription: "Alarm for Swa Slack Api Exception"
+      Namespace: "SwaBot"
+      MetricName: "swa-slack-exception"
+      Statistic: "Sum"
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      TreatMissingData: "missing"
+      ComparisonOperator: "GreaterThanOrEqualToThreshold"
+      AlarmActions:
+        - !If [IsProd, !Ref SwaNotificationProd, !Ref SwaNotificationTest]
+  SwaPersonalityExceptionMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    DependsOn:
+      - SwaBotLambda
+    Properties:
+      FilterName: !Sub "personality-metric-filter-${Stage}"
+      LogGroupName: !Sub "/aws/lambda/${ResourceName}-lambda-${Stage}"
+      FilterPattern: '{($.level = "error") && ($.message = "*personality*")}'
+      MetricTransformations:
+        - MetricValue: "1"
+          MetricNamespace: "SwaBot"
+          MetricName: "swa-personality-exception"
+          DefaultValue: 0
+          Unit: "Count"
+  SwaPersonalityExceptonAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "swa-personality-alarm-${Stage}"
+      AlarmDescription: "Alarm for Swa Personality Exception"
+      Namespace: "SwaBot"
+      MetricName: "swa-personality-exception"
+      Statistic: "Sum"
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      TreatMissingData: "missing"
+      ComparisonOperator: "GreaterThanOrEqualToThreshold"
+      AlarmActions:
+        - !If [IsProd, !Ref SwaNotificationProd, !Ref SwaNotificationTest]
+# ##########################################################################
+# #  CloudFront::CachePolicy                                               #
+# ##########################################################################
+  CachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Properties:
+      CachePolicyConfig:
+        Comment: Cache for 3h
+        Name: !Ref AWS::StackName
+        DefaultTTL: 10800
+        MaxTTL: 10800
+        MinTTL: 10800
+        ParametersInCacheKeyAndForwardedToOrigin:
+          CookiesConfig:
+            CookieBehavior: none
+          EnableAcceptEncodingBrotli: false
+          EnableAcceptEncodingGzip: false
+          HeadersConfig:
+            HeaderBehavior: whitelist
+            Headers:
+              - x-forwarded-for
+              - User-Agent
+              - X-Slack-Signature
+              - X-Slack-Request-Timestamp
+              - X-Slack-Retry-Num
+          QueryStringsConfig:
+            QueryStringBehavior: whitelist
+            QueryStrings:
+              - allowed_query_string_param
+
+# ##########################################################################
+# #  CloudFront::Distribution                                              #
+# ##########################################################################
+  CloudfrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        PriceClass: PriceClass_100
+        IPV6Enabled: true
+        HttpVersion: http2 
+        Origins:
+          - Id: MyOrigin
+            DomainName: !If [IsProd, "api-prod.swa-ai.com", "api.swa-ai.com"]
+            CustomOriginConfig:
+              HTTPSPort: 443
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols: 
+                - TLSv1.2
+        Enabled: true
+        DefaultCacheBehavior:
+          AllowedMethods:
+            - GET
+            - POST
+            - PUT
+            - PATCH
+            - DELETE
+            - HEAD
+            - OPTIONS
+          CachedMethods:
+            - HEAD
+            - GET
+          Compress: true
+          TargetOriginId: MyOrigin
+          ViewerProtocolPolicy: redirect-to-https
+          CachePolicyId: !Ref CachePolicy
+Outputs:
+  CloudFrontUrl:
+    Description: "URL for the CloudFront Distribution"
+    Value: !GetAtt CloudfrontDistribution.DomainName

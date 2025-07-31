@@ -1,0 +1,53 @@
+{
+  "name": "swa-bot",
+  "version": "1.0.0",
+  "main": "src/index.mjs",
+  "scripts": {
+    "test": "yarn test",
+    "deploy": "scripts/deploy.sh",
+    "dev:teams": "node --env-file=.env.teams src/teams/teams-server.mjs",
+    "start:teams": "node src/teams/index.mjs",
+    "build:teams": "echo 'Teams build completed'",
+    "deploy:teams": "az webapp deploy --resource-group swa-teams-bot-rg --name swa-teams-app"
+  },
+  "keywords": [],
+  "author": "SwaTech",
+  "license": "ISC",
+  "description": "Swa BOT",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.36.3",
+    "@aws-sdk/client-bedrock-runtime": "^3.787.0",
+    "@aws-sdk/client-ssm": "^3.782.0",
+    "@slack/web-api": "^7.7.0",
+    "@swatechnology/swa-multi-agent-orchestrator": "0.0.35",
+    "botbuilder": "^4.23.2",
+    "botframework-connector": "^4.23.2",
+    "node-fetch": "^3.3.2",
+    "nodemon": "^3.1.10",
+    "openai": "^4.95.0",
+    "qs": "^6.13.1",
+    "request": "^2.88.2",
+    "tsscmp": "^1.0.6",
+    "uuid": "^11.0.5",
+    "winston": "^3.17.0"
+  },
+  "devDependencies": {
+    "@aws-sdk/client-dynamodb": "^3.712.0",
+    "@aws-sdk/client-lambda": "^3.699.0",
+    "@aws-sdk/client-s3": "^3.735.0",
+    "@aws-sdk/client-secrets-manager": "^3.738.0",
+    "@aws-sdk/client-sqs": "^3.750.0",
+    "@aws-sdk/credential-providers": "^3.712.0",
+    "@aws-sdk/lib-dynamodb": "^3.712.0",
+    "@typescript-eslint/eslint-plugin": "^8.22.0",
+    "@typescript-eslint/parser": "^8.22.0",
+    "auto-changelog": "^2.5.0",
+    "body-parser": "^1.20.3",
+    "eslint": "^9.19.0",
+    "eslint-config-prettier": "^10.0.1",
+    "eslint-plugin-prettier": "^5.2.3",
+    "express": "^4.21.2",
+    "prettier": "^3.4.2",
+    "ws": "^8.18.0"
+  }
+}
